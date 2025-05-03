@@ -1,4 +1,4 @@
-# Details for code
+# Details for code reviewer
 Use code_review.R file to aadd your comments in case anything is added to code.
 
 # Code
