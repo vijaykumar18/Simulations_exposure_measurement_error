@@ -20,7 +20,7 @@ There are three major steps of the code;
 
 Data is already created using step #1. I would suggest going through step #3, and once everything looks good, generating the data by yourself using step #1 and then doing step #2 to 3 again to make sure everything looks good. 
 
-The Figure 2 to 5 in paper is coming from experiment rxp_001, Figure 6 to 9 in paper is coming from experiment exp_002, and Figure 10 to 13 in paper is coming from experiment exp_003,
+Figure 1--2, Table A2--A4 are results from all three experiments.
 
 # details of experiments
 # there were around fifty experiments in total but we have included top three which are used in paper
