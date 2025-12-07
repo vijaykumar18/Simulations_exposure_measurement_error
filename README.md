@@ -5,8 +5,8 @@ This file contains details of each experiment. author, exp_xxx, detil about simu
 
 To start of code review, you need;
 
-1) Daily PM2.5 zip code level data  (pm25_js_zip_2000_2016_ny_daily.csv)  
-2) Preterm birth aggregated data (zipall_1719.sas7bdat)
+1) Daily PM2.5 zip code level data  (pm25_js_zip_2000_2016_ny_daily.csv) from US-wide Daily 1 KM PM2.5 model by Di, Q.(2020) https://doi.org/10.7927/9yp5-hz11
+2) Preterm birth aggregated data (zipall_1719.sas7bdat) from New York State Health https://www.health.ny.gov/statistics/vital_statistics
 
 A) You need to set the working directory properly...like mine is setwd("~/Downloads/DiffMeasError/Code/codeReview"). Inside code review, we have data and code for data generation, and then an exp subfolder with simulations
 
