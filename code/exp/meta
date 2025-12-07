@@ -1,0 +1,27 @@
+STEP-1: Create data using the script CreateDataFinal.R.
+
+There are three experiments used in this study. These are referred to as Experiment 1 (E1), Experiment 2 (E2), and Experiment 3 (E3), and each is located inside its corresponding exp_xxx folder.
+
+STEP-2 Create Experiments
+
+STEP-3: To run simulations, you may either:
+
+Use the single script sims_all.R, which runs all 10 scenarios in one screen session (approximately 10–12 hours on a Mac M2 with 16 GB RAM), or
+
+Run each simsX.R script in a separate screen session, which completes all scenarios in about 2.5 hours total.
+
+Step-3: Run VisualizeResults.R inside the results folder of each exp_xxx directory to generate plots for that experiment.
+
+The  VisualizeResults.R will also create three csv files including results (Figure-2), bias_results (Figure-3, and tables: A2-A4), and coverage_results.
+
+
+We have the following three experiments:
+################################################Please fill the details##########################
+
+exp_001 (E1): PM + N(0, sd) scenario with a random intercept.
+
+exp_002 (E2): Similar to exp_043 but with PM + N(c, sd), where
+c = 2.5 per 10 units of PM2.5 (equivalently, +0.25 per 1 unit of PM2.5).
+
+exp_003 (E3): Similar to exp_043 but with fixed PM + N(c, sd), where
+c = −2.5 per 10 units of PM2.5 (equivalently, −0.25 per 1 unit of PM2.5).
