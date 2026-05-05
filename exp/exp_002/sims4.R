@@ -22,7 +22,10 @@
 
 rm(list=ls())
 
-setwd("~/Downloads/CodeReview_Alan")
+project.folder = paste0(print(here::here()),'/') 
+project.folder
+setwd(project.folder)
+getwd()
 
 library(readr)
 library(MASS)
@@ -50,7 +53,7 @@ truedta_ass$term_births  <- truedta_ass$all_births - truedta_ass$preterm_births
 ################### PTB scenario ######################################
 
 set.seed(212)
-n.sims  <- 5
+n.sims  <- 200
 err.lev <- c(0, 0.5, 1, 2)
 
 ########################################################################

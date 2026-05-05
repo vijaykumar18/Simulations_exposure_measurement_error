@@ -2,8 +2,9 @@
 # This script is used to create the tables and figures of paper
 
 # Set working directory to this Results folder before running.
+getwd()
 
-setwd("~/Downloads/CodeReview_Alan/exp/exp_001/Results")
+#setwd("~/Downloads/CodeReview_Alan/exp/exp_001/Results")
 
 library(survival)
 library(ggplot2)
@@ -21,17 +22,17 @@ rm(list=ls())
 
 # read all simulations output to aggregate RR, coverage and bias.
 
-nondiff_null      <- read_csv("nondiff_null.csv")
-diff_null_moreErr <- read_csv("diff_null_moreErr.csv")
-diff_null_lessErr <- read_csv("diff_null_lessErr.csv")
-diff_null_lessErr50 <- read_csv("diff_null_lessErr50.csv")
-diff_null_moreErr50 <- read_csv("diff_null_moreErr50.csv")
+nondiff_null      <- read_csv("exp/exp_001/Results/nondiff_null.csv")
+diff_null_moreErr <- read_csv("exp/exp_001/Results/diff_null_moreErr.csv")
+diff_null_lessErr <- read_csv("exp/exp_001/Results/diff_null_lessErr.csv")
+diff_null_lessErr50 <- read_csv("exp/exp_001/Results/diff_null_lessErr50.csv")
+diff_null_moreErr50 <- read_csv("exp/exp_001/Results/diff_null_moreErr50.csv")
 
-nondiff_harm      <- read_csv("nondiff_harm.csv")
-diff_harm_moreErr <- read_csv("diff_harm_moreErr.csv")
-diff_harm_lessErr <- read_csv("diff_harm_lessErr.csv")
-diff_harm_lessErr50 <- read_csv("diff_harm_lessErr50.csv")
-diff_harm_moreErr50 <- read_csv("diff_harm_moreErr50.csv")
+nondiff_harm      <- read_csv("exp/exp_001/Results/nondiff_harm.csv")
+diff_harm_moreErr <- read_csv("exp/exp_001/Results/diff_harm_moreErr.csv")
+diff_harm_lessErr <- read_csv("exp/exp_001/Results/diff_harm_lessErr.csv")
+diff_harm_lessErr50 <- read_csv("exp/exp_001/Results/diff_harm_lessErr50.csv")
+diff_harm_moreErr50 <- read_csv("exp/exp_001/Results/diff_harm_moreErr50.csv")
 
 # List of dataset names
 my.dta <- ls()
@@ -136,9 +137,9 @@ summary(results)
 summary(bias_results)
 summary(coverage_results)
 
-write_csv(results, "results.csv")
-write_csv(bias_results, "bias_results.csv")
-write_csv(coverage_results, "coverage_results.csv")
+write_csv(results, "exp/exp_001/Results/results.csv")
+write_csv(bias_results, "exp/exp_001/Results/bias_results.csv")
+write_csv(coverage_results, "exp/exp_001/Results/coverage_results.csv")
 
 #################################RR Plots for Null Results Figure 2##################### 
 
@@ -154,7 +155,7 @@ null.res$err <- rep(c("0", "0.5", "1", "2"), length.out = nrow(null.res))
 # Ensure the 'err' vector is correctly assigned
 summary(null.res)
 
-pdf("null_results.pdf", width = 6, height = 6)
+pdf("exp/exp_001/Results/null_results.pdf", width = 6, height = 6)
 par(mar = c(5, 5, 4, 2) + 0.01)
 
 plot(
@@ -218,7 +219,7 @@ harm.res$err <- rep(c("0", "0.5", "1", "2"), length.out = nrow(harm.res))
 harm.res$err <- as.character(harm.res$err)
 summary(harm.res)
 
-pdf("harm_results.pdf", width = 6, height = 6)
+pdf("exp/exp_001/Results/harm_results.pdf", width = 6, height = 6)
 par(mar = c(5, 5, 4, 2) + 0.01)
 
 
@@ -260,11 +261,12 @@ dev.off()
 
 
 
+
 rm(list=ls())
 
 ##################################Bias plots for Figure 3#######################################
 
-bias_results <- read_csv("bias_results.csv")
+bias_results <- read_csv("exp/exp_001/Results/bias_results.csv")
 
 bias_assoc<-bias_results%>%dplyr::select(scenario,bias_mean,result_type)%>%filter(result_type=="Association")
 bias_null<-bias_results%>%dplyr::select(scenario,bias_mean,result_type)%>%filter(result_type=="Null Association")
@@ -378,12 +380,19 @@ p2 <- ggplot(bias_null, aes(x = bias_type, y = error_level, fill = bias_mean)) +
 
 p2
 # Combine the plots
-pdf("ass_bias_perc_heatmap.pdf", width = 8, height = 6)
+pdf("exp/exp_001/Results/ass_bias_perc_heatmap.pdf", width = 8, height = 6)
 p1
 dev.off()
 
-pdf("null_bias_perc_heatmap.pdf", width = 8, height = 6)
+pdf("exp/exp_001/Results/null_bias_perc_heatmap.pdf", width = 8, height = 6)
 p2
 dev.off()
 rm(list=ls())
+
+
+
+
+
+
+
 

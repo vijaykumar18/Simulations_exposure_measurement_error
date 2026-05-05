@@ -25,7 +25,7 @@
 # ── Working directory ─────────────────────────────────────────────────────────
 # Set this to the project root before running.
 # e.g. setwd("~/Downloads/CodeReview/CodeReview_Alan")
-setwd("~/Downloads/CodeReview/CodeReview_Alan")
+
 # ── Libraries ─────────────────────────────────────────────────────────────────
 library(dplyr)
 library(readr)
@@ -52,39 +52,41 @@ set.seed(212)
 n.sims  <- 200
 err.lev <- c(0, 0.5, 1, 2)
 
+getwd()
+
 # ── Run all 10 scenarios ─────────────────────────────────────────────────────
 # Each script detects that truedta_null / truedta_ass already exist and skips
 # its standalone data-loading block, using the shared objects above instead.
 
 cat("\n[1/10] Scenario 1: Non-differential error, Null\n")
-source("sims1.R")
+source("exp/exp_001/sims1.R")
 
 cat("\n[2/10] Scenario 2: Non-differential error, Harmful\n")
-source("sims2.R")
+source("exp/exp_001/sims2.R")
 
 cat("\n[3/10] Scenario 3: Differential less error (at-risk only), Null\n")
-source("sims3.R")
+source("exp/exp_001/sims3.R")
 
 cat("\n[4/10] Scenario 4: Differential more error (at-risk only), Null\n")
-source("sims4.R")
+source("exp/exp_001/sims4.R")
 
 cat("\n[5/10] Scenario 5: Differential less error (at-risk + 50% non-risk), Null\n")
-source("sims5.R")
+source("exp/exp_001/sims5.R")
 
 cat("\n[6/10] Scenario 6: Differential more error (at-risk + 50% non-risk), Null\n")
-source("sims6.R")
+source("exp/exp_001/sims6.R")
 
 cat("\n[7/10] Scenario 7: Differential less error (at-risk only), Harmful\n")
-source("sims7.R")
+source("exp/exp_001/sims7.R")
 
 cat("\n[8/10] Scenario 8: Differential more error (at-risk only), Harmful\n")
-source("sims8.R")
+source("exp/exp_001/sims8.R")
 
 cat("\n[9/10] Scenario 9: Differential less error (at-risk + 50% non-risk), Harmful\n")
-source("sims9.R")
+source("exp/exp_001/sims9.R")
 
 cat("\n[10/10] Scenario 10: Differential more error (at-risk + 50% non-risk), Harmful\n")
-source("sims10.R")
+source("exp/exp_001/sims10.R")
 
 cat("\nAll scenarios complete. Results saved to ./exp/exp_001/Results/\n")
 sessionInfo()

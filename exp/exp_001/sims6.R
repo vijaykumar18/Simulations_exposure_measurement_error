@@ -15,7 +15,10 @@
 
 ###################### Vijay's simulations ##############################
 
-setwd("~/Downloads/CodeReview_Alan")
+project.folder = paste0(print(here::here()),'/') 
+project.folder
+setwd(project.folder)
+getwd()
 
 library(readr)
 library(MASS)

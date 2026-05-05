@@ -1,7 +1,7 @@
 # This script is used to create the tables and figures of paper
 
 # Set working directory to this Results folder before running.
-setwd("~/Downloads/CodeReview_Alan/exp/exp_003/Results")
+#setwd("~/Downloads/CodeReview_Alan/exp/exp_003/Results")
 library(survival)
 library(ggplot2)
 library(broom)
@@ -18,39 +18,39 @@ rm(list=ls())
 
 # This scenario combines 0 error from baseline E1 experiment and +c from E2 experiment. 
 # Process exp_001 (baseline - ALL error levels 0, 0.5, 1, 2 but WITHOUT +c suffix)
-setwd("~/Downloads/CodeReview_Alan/exp/exp_001/Results")
+#setwd("~/Downloads/CodeReview_Alan/exp/exp_001/Results")
 
 # Load baseline datasets
-nondiff_null      <- read_csv("nondiff_null.csv")
-diff_null_moreErr <- read_csv("diff_null_moreErr.csv")
-diff_null_lessErr <- read_csv("diff_null_lessErr.csv")
-diff_null_lessErr50 <- read_csv("diff_null_lessErr50.csv")
-diff_null_moreErr50 <- read_csv("diff_null_moreErr50.csv")
+nondiff_null      <- read_csv("exp/exp_001/Results/nondiff_null.csv")
+diff_null_moreErr <- read_csv("exp/exp_001/Results/diff_null_moreErr.csv")
+diff_null_lessErr <- read_csv("exp/exp_001/Results/diff_null_lessErr.csv")
+diff_null_lessErr50 <- read_csv("exp/exp_001/Results/diff_null_lessErr50.csv")
+diff_null_moreErr50 <- read_csv("exp/exp_001/Results/diff_null_moreErr50.csv")
 
-nondiff_harm      <- read_csv("nondiff_harm.csv")
-diff_harm_moreErr <- read_csv("diff_harm_moreErr.csv")
-diff_harm_lessErr <- read_csv("diff_harm_lessErr.csv")
-diff_harm_lessErr50 <- read_csv("diff_harm_lessErr50.csv")
-diff_harm_moreErr50 <- read_csv("diff_harm_moreErr50.csv")
+nondiff_harm      <- read_csv("exp/exp_001/Results/nondiff_harm.csv")
+diff_harm_moreErr <- read_csv("exp/exp_001/Results/diff_harm_moreErr.csv")
+diff_harm_lessErr <- read_csv("exp/exp_001/Results/diff_harm_lessErr.csv")
+diff_harm_lessErr50 <- read_csv("exp/exp_001/Results/diff_harm_lessErr50.csv")
+diff_harm_moreErr50 <- read_csv("exp/exp_001/Results/diff_harm_moreErr50.csv")
 
 # List of baseline dataset names
 baseline.dta <- ls()
 
 # Process exp_045 (+c datasets - all error levels)
-setwd("~/Downloads/CodeReview_Alan/exp/exp_003/Results")
+#setwd("~/Downloads/CodeReview_Alan/exp/exp_003/Results")
 
 # Load +c datasets
-nondiff_null_c      <- read_csv("nondiff_null.csv")
-diff_null_moreErr_c <- read_csv("diff_null_moreErr.csv")
-diff_null_lessErr_c <- read_csv("diff_null_lessErr.csv")
-diff_null_lessErr50_c <- read_csv("diff_null_lessErr50.csv")
-diff_null_moreErr50_c <- read_csv("diff_null_moreErr50.csv")
+nondiff_null_c      <- read_csv("exp/exp_003/Results/nondiff_null.csv")
+diff_null_moreErr_c <- read_csv("exp/exp_003/Results/diff_null_moreErr.csv")
+diff_null_lessErr_c <- read_csv("exp/exp_003/Results/diff_null_lessErr.csv")
+diff_null_lessErr50_c <- read_csv("exp/exp_003/Results/diff_null_lessErr50.csv")
+diff_null_moreErr50_c <- read_csv("exp/exp_003/Results/diff_null_moreErr50.csv")
 
-nondiff_harm_c      <- read_csv("nondiff_harm.csv")
-diff_harm_moreErr_c <- read_csv("diff_harm_moreErr.csv")
-diff_harm_lessErr_c <- read_csv("diff_harm_lessErr.csv")
-diff_harm_lessErr50_c <- read_csv("diff_harm_lessErr50.csv")
-diff_harm_moreErr50_c <- read_csv("diff_harm_moreErr50.csv")
+nondiff_harm_c      <- read_csv("exp/exp_003/Results/nondiff_harm.csv")
+diff_harm_moreErr_c <- read_csv("exp/exp_003/Results/diff_harm_moreErr.csv")
+diff_harm_lessErr_c <- read_csv("exp/exp_003/Results/diff_harm_lessErr.csv")
+diff_harm_lessErr50_c <- read_csv("exp/exp_003/Results/diff_harm_lessErr50.csv")
+diff_harm_moreErr50_c <- read_csv("exp/exp_003/Results/diff_harm_moreErr50.csv")
 
 # List of +c dataset names
 c.dta <- ls()[!ls() %in% baseline.dta]
@@ -136,9 +136,9 @@ for (m in seq_along(c.dta)) {
     se_col <- which(names(dta) == paste0("se_", err.lev[e]))
     
     if (length(b_col) > 0 && length(se_col) > 0) {
-      beta <- mean(dta[, b_col])
-      vbar <- mean(dta[, se_col]^2)
-      capb <- var(dta[, b_col])
+      beta <- mean(dta[, b_col], na.rm = TRUE)
+      vbar <- mean(dta[, se_col]^2, na.rm = TRUE)
+      capb <- var(dta[, b_col], na.rm = TRUE)
       n_eff <- sum(!is.na(dta[, b_col]))
       if(n_eff > 1){
         sterr <- sqrt(vbar + (n_eff + 1) / n_eff * capb)
@@ -197,9 +197,9 @@ summary(bias_results)
 summary(coverage_results)
 
 # Save final results
-write_csv(results, "results.csv")
-write_csv(bias_results, "bias_results.csv")
-write_csv(coverage_results, "coverage_results.csv")
+write_csv(results, "exp/exp_003/Results/results.csv")
+write_csv(bias_results, "exp/exp_003/Results/bias_results.csv")
+write_csv(coverage_results, "exp/exp_003/Results/coverage_results.csv")
 
 #################################RR Plots for Null Results Figure 2##################### 
 ##E2 null Results
@@ -249,12 +249,12 @@ e2.combined.res$err <- ifelse(
 
 summary(e2.null.res)
 
-pdf("null_results.pdf", width = 6, height = 6)
+pdf("exp/exp_003/Results/null_results.pdf", width = 6, height = 6)
 par(mar = c(5, 5, 4, 2) + 0.01)
 
 # For log scale, we need to adjust the y-axis range and use log="y"
 y_min <- 0.67
-y_max <- 1.33
+y_max <- 1.4
 
 # Use log scale on y-axis - add log="y" parameter
 plot(c(1, nrow(e2.combined.res)), c(y_min, y_max), pch = '', las = 1,
@@ -348,12 +348,12 @@ e2.combined.res$err <- ifelse(
 
 summary(e2.combined.res)
 
-pdf("harm_results.pdf", width = 6, height = 6)
+pdf("exp/exp_003/Results/harm_results.pdf", width = 6, height = 6)
 par(mar = c(5, 5, 4, 2) + 0.01)
 
 # For log scale, we need to adjust the y-axis range and use log="y"
 y_min <- 0.78
-y_max <- 1.32
+y_max <- 1.4
 
 # Use log scale on y-axis - add log="y" parameter
 plot(c(1, nrow(e2.combined.res)), c(y_min, y_max), pch = '', las = 1,
@@ -409,7 +409,7 @@ dev.off()
 
 ##################################Bias plots for Figure 3#######################################
 
-bias_results <- read_csv("bias_results.csv")
+bias_results <- read_csv("exp/exp_003/Results/bias_results.csv")
 
 # Add a column to indicate the result type
 
@@ -522,11 +522,12 @@ p2 <- ggplot(bias_null, aes(x = bias_type, y = error_level, fill = bias_mean)) +
 
 p2
 # Combine the plots
-pdf("ass_bias_perc_heatmap.pdf", width = 8, height = 6)
+pdf("exp/exp_003/Results/ass_bias_perc_heatmap.pdf", width = 8, height = 6)
 p1
 dev.off()
 
-pdf("null_bias_perc_heatmap.pdf", width = 8, height = 6)
+pdf("exp/exp_003/Results/null_bias_perc_heatmap.pdf", width = 8, height = 6)
 p2
 dev.off()
 rm(list=ls())
+
