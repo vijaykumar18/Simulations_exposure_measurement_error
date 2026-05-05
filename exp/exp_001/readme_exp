@@ -1,0 +1,63 @@
+================================================================================
+README — exp_00X folder
+================================================================================
+This folder contains all simulation scripts and results for one experiment
+(E1, E2, or E3). See exp/meta for the differences between experiments.
+================================================================================
+
+CONTENTS
+--------------------------------------------------------------------------------
+
+  Sims_all.R        Combined script running all 10 scenarios sequentially
+                    in one R session. Data loaded once and shared across all
+                    scenarios. Best for a single long screen session.
+
+  sims1.R           Scenario 1:  Non-differential error, Null association
+  sims2.R           Scenario 2:  Non-differential error, Harmful association
+  sims3.R           Scenario 3:  Differential -- less error in at-risk, Null
+  sims4.R           Scenario 4:  Differential -- more error in at-risk, Null
+  sims5.R           Scenario 5:  Differential -- less error in at-risk + 50% non-risk, Null
+  sims6.R           Scenario 6:  Differential -- more error in at-risk + 50% non-risk, Null
+  sims7.R           Scenario 7:  Differential -- less error in at-risk, Harmful
+  sims8.R           Scenario 8:  Differential -- more error in at-risk, Harmful
+  sims9.R           Scenario 9:  Differential -- less error in at-risk + 50% non-risk, Harmful
+  sims10.R          Scenario 10: Differential -- more error in at-risk + 50% non-risk, Harmful
+
+  Results/          Folder where all simulation output CSVs are saved.
+                    Also contains VisualizeResults.R (run from inside this folder).
+
+HOW TO RUN
+--------------------------------------------------------------------------------
+
+Scripts must be run from inside this exp_00X folder (not the project root).
+See the project-root readme for full screen session instructions.
+
+  Option A — all scenarios in one session (~10-12 hrs):
+    Rscript Sims_all.R
+
+  Option B — each scenario in its own parallel screen session (~2.5 hrs total):
+    Rscript sims1.R
+    Rscript sims2.R
+    ...
+    Rscript sims10.R
+    
+  Option c —  Run scenarios individually in parallel using .sh file (~2.5 hrs total) --
+    cd ~/Downloads/CodeReview/CodeReview_Heather
+    chmod +x run_all_sims.sh   # only first time
+    ./run_all_sims.sh # creates 10 screens named simsX and executes each simsX.R in that screen
+    screen -ls # to check if all screens created and are running
+    
+
+Each sims#.R script is fully self-contained and can be run standalone or
+sourced from Sims_all.R — it will detect whether data are already loaded
+and skip re-reading from disk if so.
+
+OUTPUTS
+--------------------------------------------------------------------------------
+
+Each sims#.R script saves two CSV files to Results/:
+  <scenario_name>.csv        200 x (2 * 4) matrix of beta and SE estimates
+  cor_<scenario_name>.csv    200 x 4 matrix of correlations (pm.err vs pm25)
+
+After all simulations complete, run VisualizeResults.R from inside Results/
+to produce Figure 2, Figure 3, and the data for Tables A3-A5.

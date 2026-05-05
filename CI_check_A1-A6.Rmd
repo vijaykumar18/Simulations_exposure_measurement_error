@@ -1,0 +1,776 @@
+---
+title: "Check CI"
+output: html_notebook
+---
+
+
+# CI_check_A1-A6.R
+# Purpose : Generate the A1--A6 supplementary tables for variance, correlation, and bias
+# Inputs  : all generated csvz in results including bias_results.csv 
+# Outputs : Latex tables 
+# Authors : Vijay Kumar
+# Updated : March 2026
+
+```{r}
+
+library(survival)
+library(ggplot2)
+library(broom)
+library(haven)
+library(dplyr)
+library(tidyr)
+library(readr)
+library(MASS)
+library(lubridate)
+library(lme4)
+library(glmmTMB)
+library(ggplot2)
+library(knitr) # this package was added
+library(kableExtra) # this package was added
+
+options(readr.show_col_types = FALSE)  # suppress column spec messages globally
+rm(list=ls())
+```
+
+Read null and association data
+
+```{r}
+truedta_null <- read_csv("/scratch/user/u.vk230134/Downloads/DiffMeasError/CodeReview/truedta_null_Final.csv")
+truedta_ass <- read_csv("/scratch/user/u.vk230134/Downloads/DiffMeasError/CodeReview/truedta_ass_Final.csv")
+
+truedta_null$term_births <- truedta_null$all_births - truedta_null$preterm_births
+truedta_ass$term_births  <- truedta_ass$all_births - truedta_ass$preterm_births
+```
+
+
+Variance and Correlation of each scenario inside one experiment.
+
+
+
+```{r}
+# --- Paths ---
+base_path <- "/scratch/user/u.vk230134/Downloads/DiffMeasError/CodeReview/exp/exp_049/Results/"
+scenario_names <- c(
+  "nondiff_null", "diff_null_moreErr", "diff_null_lessErr", "diff_null_lessErr50", "diff_null_moreErr50",
+  "nondiff_harm", "diff_harm_moreErr", "diff_harm_lessErr", "diff_harm_lessErr50", "diff_harm_moreErr50"
+)
+
+# --- Error Levels ---
+err.lev <- c(0, 0.5, 1, 2)
+
+# --- True Variance ---
+var_pm25 <- var(truedta_ass$pm25)
+
+# --- Initialize results list ---
+all_results <- list()
+
+set.seed(212)  # ensures Var_Corr.csv values are reproducible
+
+# --- Loop through each scenario ---
+for (scen in scenario_names) {
+  cat("\nProcessing scenario:", scen, "\n")
+
+  # Load results
+  diff_res <- read_csv(paste0(base_path, scen, ".csv"))
+  cor_res  <- read_csv(paste0(base_path, "cor_", scen, ".csv"))
+
+  # Select correct dataset based on scenario
+  dta <- if (grepl("null", scen)) truedta_null else truedta_ass
+
+  # Variance of observed exposure for error levels
+  variances_pm_err <- numeric(length(err.lev))
+
+  for (e in 1:length(err.lev)) {
+
+    if (grepl("nondiff", scen)) {
+      # Non-differential: same error for all observations
+      pm.err <- rnorm(nrow(dta), dta$pm25,
+                      err.lev[e] * sd(dta$pm25))
+      variances_pm_err[e] <- var(pm.err)
+
+    } else {
+      # Differential: different error by risk group
+      pm.err.norisk <- rnorm(nrow(dta), dta$pm25,
+                             err.lev[e] * sd(dta$pm25))
+
+      if (grepl("moreErr", scen)) {
+        pm.err.hirisk <- rnorm(nrow(dta), dta$pm25,
+                               (err.lev[e] * 10) * sd(dta$pm25))
+      } else if (grepl("lessErr", scen)) {
+        pm.err.hirisk <- rnorm(nrow(dta), dta$pm25,
+                               (err.lev[e] / 10) * sd(dta$pm25))
+      }
+
+      # Weighted combination — 50% scenarios
+      if (grepl("50", scen)) {
+        pm.err <- ifelse(dta$all_births > 0,
+                         (0.5 * dta$term_births    * pm.err.norisk +
+                          0.5 * dta$term_births    * pm.err.hirisk +
+                               dta$preterm_births  * pm.err.hirisk) /
+                           dta$all_births,
+                         mean(c(pm.err.norisk, pm.err.hirisk)))
+      } else {
+        pm.err <- ifelse(dta$all_births > 0,
+                         (dta$term_births    * pm.err.norisk +
+                          dta$preterm_births * pm.err.hirisk) /
+                           dta$all_births,
+                         mean(c(pm.err.norisk, pm.err.hirisk)))
+      }
+      variances_pm_err[e] <- var(pm.err)
+    }
+  }
+
+  # Compute average correlation from saved simulation results
+  correlations <- colMeans(cor_res)
+
+  # Output variance comparison
+  variance_comparison <- data.frame(
+    Error_Level     = err.lev,
+    Variance_pm25   = var_pm25,
+    Variance_pm_err = variances_pm_err
+  )
+  print(variance_comparison)
+
+  # Correlation plot
+  plot(err.lev, correlations, type = "b", col = "red",
+       xlab = "Error Level", ylab = "Correlation (pm.err vs pm25)",
+       main = paste("Correlation vs Error Levels (", scen, ")", sep = ""))
+
+  # Coefficients and SEs
+  coef_means <- colMeans(diff_res[, grep("b_",  names(diff_res))])
+  se_means   <- colMeans(diff_res[, grep("se_", names(diff_res))])
+
+  # Plot coefficients and SEs
+  par(mfrow = c(1, 2))
+  plot(err.lev, coef_means, type = "b", col = "blue",
+       xlab = "Error Level", ylab = "Mean Coefficient (b)",
+       main = paste("Effect of Error on Coefficient (", scen, ")", sep = ""))
+  plot(err.lev, se_means, type = "b", col = "green",
+       xlab = "Error Level", ylab = "Mean SE",
+       main = paste("Effect of Error on SE (", scen, ")", sep = ""))
+  par(mfrow = c(1, 1))
+
+  # Store results
+  all_results[[scen]] <- data.frame(
+    Scenario                = scen,
+    Error_Level             = err.lev,
+    Variance_pm25           = var_pm25,
+    Variance_pm_err         = variances_pm_err,
+    Correlation_pm_err_pm25 = correlations
+  )
+
+  cat("Completed scenario:", scen, "\n")
+}
+
+cat("\nAll scenarios processed!\n")
+
+# Combine and save
+final_results <- do.call(rbind, all_results)
+write_csv(final_results,
+          "/scratch/user/u.vk230134/Downloads/DiffMeasError/CodeReview/exp/exp_049/Results/Var_Corr.csv")
+```
+
+Experiment E2
+
+```{r}
+base_path <- "/scratch/user/u.vk230134/Downloads/DiffMeasError/CodeReview/exp/exp_050/Results/"
+scenario_names <- c(
+  "nondiff_null", "diff_null_moreErr", "diff_null_lessErr", "diff_null_lessErr50", "diff_null_moreErr50", 
+  "nondiff_harm", "diff_harm_moreErr", "diff_harm_lessErr", "diff_harm_lessErr50", "diff_harm_moreErr50"
+)
+
+# --- Error Levels ---
+err.lev <- c(0, 0.5, 1, 2)
+
+# --- True Variance ---
+var_pm25 <- var(truedta_ass$pm25)
+
+# --- Systematic shift for E2 ---
+c_shift <- 0.25  # = +2.5 ug/m3 in rescaled units
+
+# --- Initialize results list ---
+all_results <- list()
+set.seed(212)  # ensures Var_Corr.csv values are reproducible
+
+# --- Loop through each scenario ---
+for (scen in scenario_names) {
+  cat("\nProcessing scenario:", scen, "\n")
+  
+  # Load results
+  diff_res <- read_csv(paste0(base_path, scen, ".csv"))
+  cor_res  <- read_csv(paste0(base_path, "cor_", scen, ".csv"))
+  
+  # Variance of observed exposure for error levels
+  variances_pm_err <- numeric(length(err.lev))
+  
+  for (e in 1:length(err.lev)) {
+    
+    if (grepl("nondiff", scen)) {
+      # Non-differential: c_shift applied to ALL observations
+      pm.err <- rnorm(nrow(truedta_ass), 
+                      truedta_ass$pm25 + c_shift,
+                      err.lev[e] * sd(truedta_ass$pm25))
+      variances_pm_err[e] <- var(pm.err)
+      
+    } else {
+      # Differential: c_shift applied to high-risk group only
+      # norisk — no shift, baseline error
+      pm.err.norisk <- rnorm(nrow(truedta_ass), 
+                             truedta_ass$pm25,
+                             err.lev[e] * sd(truedta_ass$pm25))
+      
+      # hirisk — c_shift in mean, error magnitude depends on scenario
+      if (grepl("moreErr", scen)) {
+        pm.err.hirisk <- rnorm(nrow(truedta_ass), 
+                               truedta_ass$pm25 + c_shift,
+                               (err.lev[e] * 10) * sd(truedta_ass$pm25))
+      } else if (grepl("lessErr", scen)) {
+        pm.err.hirisk <- rnorm(nrow(truedta_ass), 
+                               truedta_ass$pm25 + c_shift,
+                               (err.lev[e] / 10) * sd(truedta_ass$pm25))
+      }
+      
+      # Weighted combination by birth counts
+      if (grepl("50", scen)) {
+        # 50% of non-risk also gets high-risk error
+        pm.err <- ifelse(truedta_ass$all_births > 0,
+                         (0.5 * truedta_ass$term_births * pm.err.norisk +
+                          0.5 * truedta_ass$term_births * pm.err.hirisk +
+                               truedta_ass$preterm_births * pm.err.hirisk) /
+                           truedta_ass$all_births,
+                         mean(c(pm.err.norisk, pm.err.hirisk)))
+      } else {
+        # Standard weighting
+        pm.err <- ifelse(truedta_ass$all_births > 0,
+                         (truedta_ass$term_births    * pm.err.norisk +
+                          truedta_ass$preterm_births * pm.err.hirisk) /
+                           truedta_ass$all_births,
+                         mean(c(pm.err.norisk, pm.err.hirisk)))
+      }
+      variances_pm_err[e] <- var(pm.err)
+    }
+  }
+  
+  # Output variance comparison
+  variance_comparison <- data.frame(
+    Error_Level     = err.lev,
+    Variance_pm25   = var_pm25,
+    Variance_pm_err = variances_pm_err
+  )
+  print(variance_comparison)
+  
+  # Correlation plot
+  correlations <- colMeans(cor_res)
+  plot(err.lev, correlations, type = "b", col = "red",
+       xlab = "Error Level", ylab = "Correlation (pm.err vs pm25)",
+       main = paste("Correlation vs Error Levels (", scen, ")", sep = ""))
+  
+  # Coefficients and SEs
+  coef_means <- colMeans(diff_res[, grep("b_",  names(diff_res))])
+  se_means   <- colMeans(diff_res[, grep("se_", names(diff_res))])
+  
+  # Plot coefficients and SEs
+  par(mfrow = c(1, 2))
+  plot(err.lev, coef_means, type = "b", col = "blue",
+       xlab = "Error Level", ylab = "Mean Coefficient (b)",
+       main = paste("Effect of Error on Coefficient (", scen, ")", sep = ""))
+  plot(err.lev, se_means, type = "b", col = "green",
+       xlab = "Error Level", ylab = "Mean SE",
+       main = paste("Effect of Error on SE (", scen, ")", sep = ""))
+  par(mfrow = c(1, 1))
+  
+  # Store results
+  all_results[[scen]] <- data.frame(
+    Scenario                 = scen,
+    Error_Level              = err.lev,
+    Variance_pm25            = var_pm25,
+    Variance_pm_err          = variances_pm_err,
+    Correlation_pm_err_pm25  = correlations
+  )
+  
+  cat("Completed scenario:", scen, "\n")
+}
+
+cat("\nAll scenarios processed!\n")
+
+# Combine and save
+final_results <- do.call(rbind, all_results)
+write_csv(final_results, 
+          "/scratch/user/u.vk230134/Downloads/DiffMeasError/CodeReview/exp/exp_050/Results/Var_Corr.csv")
+```
+
+Experiment E3
+
+```{r}
+base_path <- "/scratch/user/u.vk230134/Downloads/DiffMeasError/CodeReview/exp/exp_051/Results/"
+scenario_names <- c(
+  "nondiff_null", "diff_null_moreErr", "diff_null_lessErr", "diff_null_lessErr50", "diff_null_moreErr50", 
+  "nondiff_harm", "diff_harm_moreErr", "diff_harm_lessErr", "diff_harm_lessErr50", "diff_harm_moreErr50"
+)
+
+# --- Error Levels ---
+err.lev <- c(0, 0.5, 1, 2)
+
+# --- True Variance ---
+var_pm25 <- var(truedta_ass$pm25)
+
+# --- Systematic shift for E2 ---
+c_shift <- -0.25  # = +2.5 ug/m3 in rescaled units
+
+# --- Initialize results list ---
+all_results <- list()
+
+set.seed(212)  # ensures Var_Corr.csv values are reproducible
+
+# --- Loop through each scenario ---
+for (scen in scenario_names) {
+  cat("\nProcessing scenario:", scen, "\n")
+  
+  # Load results
+  diff_res <- read_csv(paste0(base_path, scen, ".csv"))
+  cor_res  <- read_csv(paste0(base_path, "cor_", scen, ".csv"))
+  
+  # Variance of observed exposure for error levels
+  variances_pm_err <- numeric(length(err.lev))
+  
+  for (e in 1:length(err.lev)) {
+    
+    if (grepl("nondiff", scen)) {
+      # Non-differential: c_shift applied to ALL observations
+      pm.err <- rnorm(nrow(truedta_ass), 
+                      truedta_ass$pm25 + c_shift,
+                      err.lev[e] * sd(truedta_ass$pm25))
+      variances_pm_err[e] <- var(pm.err)
+      
+    } else {
+      # Differential: c_shift applied to high-risk group only
+      # norisk — no shift, baseline error
+      pm.err.norisk <- rnorm(nrow(truedta_ass), 
+                             truedta_ass$pm25,
+                             err.lev[e] * sd(truedta_ass$pm25))
+      
+      # hirisk — c_shift in mean, error magnitude depends on scenario
+      if (grepl("moreErr", scen)) {
+        pm.err.hirisk <- rnorm(nrow(truedta_ass), 
+                               truedta_ass$pm25 + c_shift,
+                               (err.lev[e] * 10) * sd(truedta_ass$pm25))
+      } else if (grepl("lessErr", scen)) {
+        pm.err.hirisk <- rnorm(nrow(truedta_ass), 
+                               truedta_ass$pm25 + c_shift,
+                               (err.lev[e] / 10) * sd(truedta_ass$pm25))
+      }
+      
+      # Weighted combination by birth counts
+      if (grepl("50", scen)) {
+        # 50% of non-risk also gets high-risk error
+        pm.err <- ifelse(truedta_ass$all_births > 0,
+                         (0.5 * truedta_ass$term_births * pm.err.norisk +
+                          0.5 * truedta_ass$term_births * pm.err.hirisk +
+                               truedta_ass$preterm_births * pm.err.hirisk) /
+                           truedta_ass$all_births,
+                         mean(c(pm.err.norisk, pm.err.hirisk)))
+      } else {
+        # Standard weighting
+        pm.err <- ifelse(truedta_ass$all_births > 0,
+                         (truedta_ass$term_births    * pm.err.norisk +
+                          truedta_ass$preterm_births * pm.err.hirisk) /
+                           truedta_ass$all_births,
+                         mean(c(pm.err.norisk, pm.err.hirisk)))
+      }
+      variances_pm_err[e] <- var(pm.err)
+    }
+  }
+  
+  # Output variance comparison
+  variance_comparison <- data.frame(
+    Error_Level     = err.lev,
+    Variance_pm25   = var_pm25,
+    Variance_pm_err = variances_pm_err
+  )
+  print(variance_comparison)
+  
+  # Correlation plot
+  correlations <- colMeans(cor_res)
+  plot(err.lev, correlations, type = "b", col = "red",
+       xlab = "Error Level", ylab = "Correlation (pm.err vs pm25)",
+       main = paste("Correlation vs Error Levels (", scen, ")", sep = ""))
+  
+  # Coefficients and SEs
+  coef_means <- colMeans(diff_res[, grep("b_",  names(diff_res))])
+  se_means   <- colMeans(diff_res[, grep("se_", names(diff_res))])
+  
+  # Plot coefficients and SEs
+  par(mfrow = c(1, 2))
+  plot(err.lev, coef_means, type = "b", col = "blue",
+       xlab = "Error Level", ylab = "Mean Coefficient (b)",
+       main = paste("Effect of Error on Coefficient (", scen, ")", sep = ""))
+  plot(err.lev, se_means, type = "b", col = "green",
+       xlab = "Error Level", ylab = "Mean SE",
+       main = paste("Effect of Error on SE (", scen, ")", sep = ""))
+  par(mfrow = c(1, 1))
+  
+  # Store results
+  all_results[[scen]] <- data.frame(
+    Scenario                 = scen,
+    Error_Level              = err.lev,
+    Variance_pm25            = var_pm25,
+    Variance_pm_err          = variances_pm_err,
+    Correlation_pm_err_pm25  = correlations
+  )
+  
+  cat("Completed scenario:", scen, "\n")
+}
+
+cat("\nAll scenarios processed!\n")
+
+# Combine and save
+final_results <- do.call(rbind, all_results)
+write_csv(final_results, 
+          "/scratch/user/u.vk230134/Downloads/DiffMeasError/CodeReview/exp/exp_051/Results/Var_Corr.csv")
+```
+
+Finally, create tables A1-A3
+```{r}
+library(xtable)
+library(dplyr)
+
+# ── Function to generate formatted LaTeX table ────────────────────────────────
+generate_var_corr_latex <- function(final_results, 
+                                     experiment_label = "E1",
+                                     caption_text = NULL,
+                                     label_text = NULL) {
+  
+  # Default caption and label based on experiment
+  if (is.null(caption_text)) {
+    caption_text <- switch(experiment_label,
+      "E1" = "Variance of ``true'' \\PM\\ exposure and Pearson $r_p$ correlation coefficients between ``true'' and error-prone \\PM\\ across scenarios on the \\PM\\--PTB association across experiment E1 (random error). Error scenarios are described in Section~\\ref{subsec:error_scenarios}.",
+      "E2" = "Variance of ``true'' \\PM\\ exposure and Pearson $r_p$ correlation coefficients between ``true'' and error-prone \\PM\\ across scenarios on the \\PM\\--PTB association across experiment E2 (random error plus positive constant $c=+2.5$ \\mug). Error scenarios are described in Section~\\ref{subsec:error_scenarios}.",
+      "E3" = "Variance of ``true'' \\PM\\ exposure and Pearson $r_p$ correlation coefficients between ``true'' and error-prone \\PM\\ across scenarios on the \\PM\\--PTB association across experiment E3 (random error plus negative constant $c=-2.5$ \\mug). Error scenarios are described in Section~\\ref{subsec:error_scenarios}."
+    )
+  }
+  
+  if (is.null(label_text)) {
+    label_text <- paste0("tab:var_corr_results_", experiment_label)
+  }
+  
+  # ── Scenario display names ─────────────────────────────────────────────────
+  scenario_labels <- c(
+    "nondiff_null"       = "nondiff\\_null",
+    "diff_null_lessErr"  = "diff\\_null\\_lessErr",
+    "diff_null_lessErr50"= "diff\\_null\\_lessErr50",
+    "diff_null_moreErr"  = "diff\\_null\\_moreErr",
+    "diff_null_moreErr50"= "diff\\_null\\_moreErr50",
+    "nondiff_harm"       = "nondiff\\_harm",
+    "diff_harm_lessErr"  = "diff\\_harm\\_lessErr",
+    "diff_harm_lessErr50"= "diff\\_harm\\_lessErr50",
+    "diff_harm_moreErr"  = "diff\\_harm\\_moreErr",
+    "diff_harm_moreErr50"= "diff\\_harm\\_moreErr50"
+  )
+  
+  # ── Group labels ───────────────────────────────────────────────────────────
+  null_scenarios <- c("nondiff_null", "diff_null_lessErr", "diff_null_lessErr50",
+                      "diff_null_moreErr", "diff_null_moreErr50")
+  harm_scenarios <- c("nondiff_harm", "diff_harm_lessErr", "diff_harm_lessErr50",
+                      "diff_harm_moreErr", "diff_harm_moreErr50")
+  
+  # ── Build LaTeX manually ───────────────────────────────────────────────────
+  lines <- c(
+    "\\begin{table}[ht]",
+    "\\centering",
+    "\\footnotesize",
+    "\\setlength{\\tabcolsep}{4pt}",
+    "\\begin{tabular}{llcrrr}",
+    "  \\toprule",
+    "Group & Scenario & Error Level & Var($X_{it}$) & Var($Z_{it}$) & $r_p(X_{it}, Z_{it})$ \\\\",
+    "  \\midrule",
+    "% ======= NULL group =======",
+    "\\multirow{20}{*}{\\makebox[60pt][c]{\\rotatebox[origin=c]{90}{NULL}}}"
+  )
+  
+  # NULL scenarios
+  for (s in seq_along(null_scenarios)) {
+    scen <- null_scenarios[s]
+    scen_label <- scenario_labels[scen]
+    scen_data <- final_results %>% 
+      filter(Scenario == scen) %>%
+      arrange(Error_Level)
+    
+    if (s == 1) {
+      prefix <- paste0(" & \\multirow{4}{*}{", scen_label, "}")
+    } else {
+      prefix <- paste0("                      & \\multirow{4}{*}{", scen_label, "}")
+    }
+    
+    for (r in 1:nrow(scen_data)) {
+      row <- scen_data[r, ]
+      if (r == 1) {
+        lines <- c(lines, sprintf("%s\n                        & %s & %.2f & %.2f & %.2f \\\\",
+                                  prefix,
+                                  row$Error_Level,
+                                  row$Variance_pm25,
+                                  row$Variance_pm_err,
+                                  row$Correlation_pm_err_pm25))
+      } else {
+        lines <- c(lines, sprintf("                      &  & %s & %.2f & %.2f & %.2f \\\\",
+                                  row$Error_Level,
+                                  row$Variance_pm25,
+                                  row$Variance_pm_err,
+                                  row$Correlation_pm_err_pm25))
+      }
+    }
+    
+    if (s < length(null_scenarios)) {
+      lines <- c(lines, "                      \\cline{2-6}")
+    }
+  }
+  
+  lines <- c(lines,
+    "  \\midrule",
+    "% ======= HARM group =======",
+    "\\multirow{20}{*}{\\makebox[60pt][c]{\\rotatebox[origin=c]{90}{HARMFUL}}}"
+  )
+  
+  # HARM scenarios
+  for (s in seq_along(harm_scenarios)) {
+    scen <- harm_scenarios[s]
+    scen_label <- scenario_labels[scen]
+    scen_data <- final_results %>%
+      filter(Scenario == scen) %>%
+      arrange(Error_Level)
+    
+    if (s == 1) {
+      prefix <- paste0(" & \\multirow{4}{*}{", scen_label, "}")
+    } else {
+      prefix <- paste0("                      & \\multirow{4}{*}{", scen_label, "}")
+    }
+    
+    for (r in 1:nrow(scen_data)) {
+      row <- scen_data[r, ]
+      if (r == 1) {
+        lines <- c(lines, sprintf("%s\n                        & %s & %.2f & %.2f & %.2f \\\\",
+                                  prefix,
+                                  row$Error_Level,
+                                  row$Variance_pm25,
+                                  row$Variance_pm_err,
+                                  row$Correlation_pm_err_pm25))
+      } else {
+        lines <- c(lines, sprintf("                      &  & %s & %.2f & %.2f & %.2f \\\\",
+                                  row$Error_Level,
+                                  row$Variance_pm25,
+                                  row$Variance_pm_err,
+                                  row$Correlation_pm_err_pm25))
+      }
+    }
+    
+    if (s < length(harm_scenarios)) {
+      lines <- c(lines, "                      \\cline{2-6}")
+    }
+  }
+  
+  # ── Close table ────────────────────────────────────────────────────────────
+  lines <- c(lines,
+    "  \\bottomrule",
+    "\\end{tabular}",
+    paste0("\\caption{", caption_text, "}"),
+    paste0("\\label{", label_text, "}"),
+    "\\footnotetext{$X_{it}$: ``true'' \\PM; $Z_{it}$: error-prone \\PM; $r_p$: Pearson correlation coefficient; nondiff\\_null: Non-differential null; diff\\_null\\_lessErr: Differential null with less error; diff\\_null\\_moreErr: Differential null with more error; diff\\_null\\_lessErr50: Differential null with less error in risk population and 50\\% of rest; diff\\_null\\_moreErr50: Differential null with more error in risk population and 50\\% of rest.}",
+    "\\end{table}"
+  )
+  
+  cat(paste(lines, collapse = "\n"))
+}
+
+# ── Generate tables for each experiment ───────────────────────────────────────
+
+# E1
+final_results_E1 <- read_csv("/scratch/user/u.vk230134/Downloads/DiffMeasError/CodeReview/exp/exp_049/Results/Var_Corr.csv")
+set.seed(212)
+generate_var_corr_latex(final_results_E1, experiment_label = "E1")
+
+# E2
+final_results_E2 <- read_csv("/scratch/user/u.vk230134/Downloads/DiffMeasError/CodeReview/exp/exp_050/Results/Var_Corr.csv")
+set.seed(212)
+generate_var_corr_latex(final_results_E2, experiment_label = "E2")
+
+# E3
+final_results_E3 <- read_csv("/scratch/user/u.vk230134/Downloads/DiffMeasError/CodeReview/exp/exp_051/Results/Var_Corr.csv")
+set.seed(212)
+generate_var_corr_latex(final_results_E3, experiment_label = "E3")
+```
+
+Table A4-A6
+For tables, we need bias data from results
+```{r}
+generate_bias_latex <- function(bias_results_path,
+                                 experiment_label = "E1",
+                                 caption_text = NULL,
+                                 label_text = NULL) {
+  
+  # Default caption and label
+  if (is.null(caption_text)) {
+    caption_text <- switch(experiment_label,
+      "E1" = "Bias under null (RR = 1) and harmful (RR = 1.115) scenarios for experiment E1 (random error only). Values show percent bias (harmful) or absolute bias (null) with 95\\% intervals (2.5\\textsuperscript{th}--97.5\\textsuperscript{th} percentile across simulations) and percent coverage. Error scenarios are described in Section~\\ref{subsec:error_scenarios}.",
+      "E2" = "Bias under null (RR = 1) and harmful (RR = 1.115) scenarios for experiment E2 (random error plus positive constant $c=+2.5$ \\mug). Values show percent bias (harmful) or absolute bias (null) with 95\\% intervals (2.5\\textsuperscript{th}--97.5\\textsuperscript{th} percentile across simulations) and percent coverage. Error scenarios are described in Section~\\ref{subsec:error_scenarios}.",
+      "E3" = "Bias under null (RR = 1) and harmful (RR = 1.115) scenarios for experiment E3 (random error plus negative constant $c=-2.5$ \\mug). Values show percent bias (harmful) or absolute bias (null) with 95\\% intervals (2.5\\textsuperscript{th}--97.5\\textsuperscript{th} percentile across simulations) and percent coverage. Error scenarios are described in Section~\\ref{subsec:error_scenarios}."
+    )
+  }
+  
+  if (is.null(label_text)) {
+    label_text <- paste0("tab:", experiment_label, "_CI_combined")
+  }
+  
+  # ── Scenario order ─────────────────────────────────────────────────────────
+  null_scenarios <- c("nondiff null", "diff null lessErr", "diff null lessErr50",
+                      "diff null moreErr", "diff null moreErr50")
+  harm_scenarios <- c("nondiff harm", "diff harm lessErr", "diff harm lessErr50",
+                      "diff harm moreErr", "diff harm moreErr50")
+  
+  # ── Scenario display names ─────────────────────────────────────────────────
+  scenario_labels <- c(
+    "nondiff null"        = "nondiff\\_null",
+    "diff null lessErr"   = "diff\\_null\\_lessErr",
+    "diff null lessErr50" = "diff\\_null\\_lessErr50",
+    "diff null moreErr"   = "diff\\_null\\_moreErr",
+    "diff null moreErr50" = "diff\\_null\\_moreErr50",
+    "nondiff harm"        = "nondiff\\_harm",
+    "diff harm lessErr"   = "diff\\_harm\\_lessErr",
+    "diff harm lessErr50" = "diff\\_harm\\_lessErr50",
+    "diff harm moreErr"   = "diff\\_harm\\_moreErr",
+    "diff harm moreErr50" = "diff\\_harm\\_moreErr50"
+  )
+  
+  # ── Load and process data ──────────────────────────────────────────────────
+  bias_results <- read_csv(bias_results_path, show_col_types = FALSE)
+  
+  table_data <- bias_results %>%
+    separate(scenario,
+             into = c("type", "effect", "errtype", "error_level"),
+             sep = "_", fill = "right") %>%
+    mutate(
+      error_level = ifelse(type == "nondiff", errtype, error_level),
+      errtype     = ifelse(type == "nondiff", NA, errtype)
+    ) %>%
+    mutate(
+      Group    = ifelse(effect == "null", "NULL", "HARMFUL"),
+      Scenario = ifelse(type == "nondiff",
+                        paste(type, effect),
+                        paste(type, effect, errtype)),
+      error_level = factor(error_level, levels = c("0", "0.5", "1", "2"))
+    ) %>%
+    arrange(Group, Scenario, error_level)
+  
+  # ── Build LaTeX manually ───────────────────────────────────────────────────
+  lines <- c(
+    "\\begin{table}[ht]",
+    paste0("\\caption{", caption_text, "}"),
+    "\\centering",
+    "\\footnotesize",
+    "\\setlength{\\tabcolsep}{4pt}",
+    "\\begin{tabular}{l l c r r r}",
+    "\\toprule",
+    "Group & Scenario & Error Level & Bias & 95\\% intervals & Coverage \\\\",
+    "\\midrule",
+    "% ======= NULL group =======",
+    "\\multirow{20}{*}{\\makebox[60pt][c]{\\rotatebox[origin=c]{90}{NULL}}}"
+  )
+  
+  # NULL scenarios
+  for (s in seq_along(null_scenarios)) {
+    scen      <- null_scenarios[s]
+    scen_label <- scenario_labels[scen]
+    scen_data  <- table_data %>% filter(Scenario == scen)
+    
+    prefix <- paste0(" & \\multirow{4}{*}{", scen_label, "}")
+    
+    for (r in 1:nrow(scen_data)) {
+      row <- scen_data[r, ]
+      bias_str <- sprintf("%.1f", row$bias_mean)
+      ci_str   <- sprintf("(%.1f, %.1f)", row$bias_2.5, row$bias_97.5)
+      cov_str  <- as.character(round(row$coverage))
+      
+      if (r == 1) {
+        lines <- c(lines,
+          sprintf("%s & %s & %s & %s & %s \\\\",
+                  prefix, as.character(row$error_level),
+                  bias_str, ci_str, cov_str))
+      } else {
+        lines <- c(lines,
+          sprintf("            &  & %s & %s & %s & %s \\\\",
+                  as.character(row$error_level),
+                  bias_str, ci_str, cov_str))
+      }
+    }
+    
+    if (s < length(null_scenarios)) {
+      lines <- c(lines, "                            \\cline{2-6}")
+    }
+  }
+  
+  lines <- c(lines,
+    "\\midrule",
+    "% ======= HARM group =======",
+    "\\multirow{20}{*}{\\makebox[60pt][c]{\\rotatebox[origin=c]{90}{HARMFUL}}}"
+  )
+  
+  # HARM scenarios
+  for (s in seq_along(harm_scenarios)) {
+    scen       <- harm_scenarios[s]
+    scen_label <- scenario_labels[scen]
+    scen_data  <- table_data %>% filter(Scenario == scen)
+    
+    prefix <- paste0(" & \\multirow{4}{*}{", scen_label, "}")
+    
+    for (r in 1:nrow(scen_data)) {
+      row <- scen_data[r, ]
+      bias_str <- sprintf("%.1f", row$bias_mean)
+      ci_str   <- sprintf("(%.1f, %.1f)", row$bias_2.5, row$bias_97.5)
+      cov_str  <- as.character(round(row$coverage))
+      
+      if (r == 1) {
+        lines <- c(lines,
+          sprintf("%s & %s & %s & %s & %s \\\\",
+                  prefix, as.character(row$error_level),
+                  bias_str, ci_str, cov_str))
+      } else {
+        lines <- c(lines,
+          sprintf("            &  & %s & %s & %s & %s \\\\",
+                  as.character(row$error_level),
+                  bias_str, ci_str, cov_str))
+      }
+    }
+    
+    if (s < length(harm_scenarios)) {
+      lines <- c(lines, "                                \\cline{2-6}")
+    }
+  }
+  
+  # ── Close table ────────────────────────────────────────────────────────────
+  lines <- c(lines,
+    "\\bottomrule",
+    "\\end{tabular}",
+    paste0("\\label{", label_text, "}"),
+    "\\footnotetext{nondiff\\_null: Non-differential null; diff\\_null\\_lessErr: Differential null with less error; diff\\_null\\_moreErr: Differential null with more error; diff\\_null\\_lessErr50: Differential null with less error in risk population and 50\\% of rest; diff\\_null\\_moreErr50: Differential null with more error in risk population and 50\\% of rest.}",
+    "\\end{table}"
+  )
+  
+  cat(paste(lines, collapse = "\n"))
+}
+
+# ── Generate tables for each experiment ───────────────────────────────────────
+generate_bias_latex(
+  "/scratch/user/u.vk230134/Downloads/DiffMeasError/CodeReview/exp/exp_049/Results/bias_results.csv",
+  experiment_label = "E1"
+)
+
+generate_bias_latex(
+  "/scratch/user/u.vk230134/Downloads/DiffMeasError/CodeReview/exp/exp_050/Results/bias_results.csv",
+  experiment_label = "E2"
+)
+
+generate_bias_latex(
+  "/scratch/user/u.vk230134/Downloads/DiffMeasError/CodeReview/exp/exp_051/Results/bias_results.csv",
+  experiment_label = "E3"
+)
+```
+
+

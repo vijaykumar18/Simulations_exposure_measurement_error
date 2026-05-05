@@ -1,0 +1,539 @@
+---
+title: "Check CI"
+output: html_notebook
+---
+
+```{r}
+
+library(survival)
+library(ggplot2)
+library(broom)
+library(haven)
+library(dplyr)
+library(tidyr)
+library(readr)
+library(MASS)
+library(lubridate)
+library(lme4)
+library(glmmTMB)
+library(ggplot2)
+
+rm(list=ls())
+```
+
+Read null and association data
+
+```{r}
+truedta_null <- read_csv("~/Downloads/CodeReview_Alan/truedta_null_Final.csv")
+truedta_ass <- read_csv("~/Downloads/CodeReview_Alan/truedta_ass_Final.csv")
+
+truedta_null$term_births <- truedta_null$all_births - truedta_null$preterm_births
+truedta_ass$term_births  <- truedta_ass$all_births - truedta_ass$preterm_births
+```
+
+
+Variance and Correlation of each scenario inside one experiment.
+
+```{r}
+##############general 
+
+# --- Paths ---
+base_path <- "~/Downloads/CodeReview_Alan/exp/exp_001/Results/"
+scenario_names <- c(
+  "nondiff_null", "diff_null_moreErr", "diff_null_lessErr", "diff_null_lessErr50", "diff_null_moreErr50", 
+  "nondiff_harm", "diff_harm_moreErr", "diff_harm_lessErr", "diff_harm_lessErr50", "diff_harm_moreErr50"
+)
+
+# --- Error Levels ---
+err.lev <- c(0, 0.5, 1, 2)
+
+# --- True Variance ---
+var_pm25 <- var(truedta_ass$pm25)
+
+# --- Loop through each scenario ---
+for (scen in scenario_names) {
+  cat("\nProcessing scenario:", scen, "\n")
+  
+  # Load results
+  diff_res <- read_csv(paste0(base_path, scen, ".csv"))
+  cor_res  <- read_csv(paste0(base_path, "cor_", scen, ".csv"))
+  
+  # Variance of observed exposure for error levels
+  variances_pm_err <- numeric(length(err.lev))
+  for (e in 1:length(err.lev)) {
+    pm.err.norisk <- rnorm(nrow(truedta_ass), truedta_ass$pm25, err.lev[e] * sd(truedta_ass$pm25))
+    pm.err.hirisk <- rnorm(nrow(truedta_ass), truedta_ass$pm25, (err.lev[e] * 10) * sd(truedta_ass$pm25))
+    
+    pm.err <- ifelse(truedta_ass$all_births > 0,
+                     (truedta_ass$term_births * pm.err.norisk +
+                        truedta_ass$preterm_births * pm.err.hirisk) /
+                       truedta_ass$all_births,
+                     mean(c(pm.err.norisk, pm.err.hirisk)))
+    
+    variances_pm_err[e] <- var(pm.err)
+  }
+  
+  # Output variance comparison
+  variance_comparison <- data.frame(
+    Error_Level = err.lev,
+    Variance_pm25 = var_pm25,
+    Variance_pm_err = variances_pm_err
+  )
+  print(variance_comparison)
+  
+  # Correlation plot
+  correlations <- colMeans(cor_res)
+  plot(err.lev, correlations, type = "b", col = "red",
+       xlab = "Error Level", ylab = "Correlation (pm.err vs pm25)",
+       main = paste("Correlation vs Error Levels (", scen, ")", sep = ""))
+  
+  # Coefficients and SEs
+  coef_means <- colMeans(diff_res[, grep("b_", names(diff_res))])
+  se_means   <- colMeans(diff_res[, grep("se_", names(diff_res))])
+  
+  # Plot coefficients and SEs
+  par(mfrow = c(1, 2))
+  
+  plot(err.lev, coef_means, type = "b", col = "blue",
+       xlab = "Error Level", ylab = "Mean Coefficient (b)",
+       main = paste("Effect of Error on Coefficient (", scen, ")", sep = ""))
+  
+  plot(err.lev, se_means, type = "b", col = "green",
+       xlab = "Error Level", ylab = "Mean SE",
+       main = paste("Effect of Error on SE (", scen, ")", sep = ""))
+  
+  par(mfrow = c(1, 1))  # Reset plot layout
+  
+  cat("Completed scenario:", scen, "\n")
+}
+
+cat("\nAll scenarios processed!\n")
+
+
+```
+
+
+```{r}
+# Initialize empty list to store results for all scenarios
+all_results <- list()
+
+for (scen in scenario_names) {
+  cat("\nProcessing scenario:", scen, "\n")
+  
+  # Load results
+  diff_res <- read_csv(paste0(base_path, scen, ".csv"))
+  cor_res  <- read_csv(paste0(base_path, "cor_", scen, ".csv"))
+  
+  # Variance of observed exposure for error levels
+  variances_pm_err <- numeric(length(err.lev))
+  for (e in 1:length(err.lev)) {
+    pm.err.norisk <- rnorm(nrow(truedta_ass), truedta_ass$pm25, err.lev[e] * sd(truedta_ass$pm25))
+    pm.err.hirisk <- rnorm(nrow(truedta_ass), truedta_ass$pm25, (err.lev[e] * 10) * sd(truedta_ass$pm25))
+    
+    pm.err <- ifelse(truedta_ass$all_births > 0,
+                     (truedta_ass$term_births * pm.err.norisk +
+                        truedta_ass$preterm_births * pm.err.hirisk) /
+                       truedta_ass$all_births,
+                     mean(c(pm.err.norisk, pm.err.hirisk)))
+    
+    variances_pm_err[e] <- var(pm.err)
+  }
+  
+  # Compute average correlation
+  correlations <- colMeans(cor_res)
+  
+  # Combine into a data frame
+  df <- data.frame(
+    Scenario = scen,
+    Error_Level = err.lev,
+    Variance_pm25 = var_pm25,
+    Variance_pm_err = variances_pm_err,
+    Correlation_pm_err_pm25 = correlations
+  )
+  
+  all_results[[scen]] <- df
+}
+
+# Combine all scenarios into one data frame
+final_results <- do.call(rbind, all_results)
+write_csv(final_results,"~/Downloads/CodeReview_Alan/exp/exp_001/Results/Var_Corr.csv")
+```
+
+```{r}
+library(xtable)
+# Create LaTeX table
+xtable_table <- xtable(final_results, caption = "Variance and Correlation Results Across Scenarios", label = "tab:var_corr_results")
+print(xtable_table, include.rownames = FALSE, booktabs = TRUE)
+```
+Experiment E2
+
+```{r}
+# --- Paths ---
+base_path <- "~/Downloads/CodeReview_Alan/exp/exp_002/Results/"
+scenario_names <- c(
+  "nondiff_null", "diff_null_moreErr", "diff_null_lessErr", "diff_null_lessErr50", "diff_null_moreErr50", 
+  "nondiff_harm", "diff_harm_moreErr", "diff_harm_lessErr", "diff_harm_lessErr50", "diff_harm_moreErr50"
+)
+
+# --- Error Levels ---
+err.lev <- c(0, 0.5, 1, 2)
+
+# --- True Variance ---
+var_pm25 <- var(truedta_ass$pm25)
+
+# --- Loop through each scenario ---
+for (scen in scenario_names) {
+  cat("\nProcessing scenario:", scen, "\n")
+  
+  # Load results
+  diff_res <- read_csv(paste0(base_path, scen, ".csv"))
+  cor_res  <- read_csv(paste0(base_path, "cor_", scen, ".csv"))
+  
+  # Variance of observed exposure for error levels
+  variances_pm_err <- numeric(length(err.lev))
+  for (e in 1:length(err.lev)) {
+    pm.err.norisk <- rnorm(nrow(truedta_ass), truedta_ass$pm25, err.lev[e] * sd(truedta_ass$pm25))
+    pm.err.hirisk <- rnorm(nrow(truedta_ass), truedta_ass$pm25, (err.lev[e] * 10) * sd(truedta_ass$pm25))
+    
+    pm.err <- ifelse(truedta_ass$all_births > 0,
+                     (truedta_ass$term_births * pm.err.norisk +
+                        truedta_ass$preterm_births * pm.err.hirisk) /
+                       truedta_ass$all_births,
+                     mean(c(pm.err.norisk, pm.err.hirisk)))
+    
+    variances_pm_err[e] <- var(pm.err)
+  }
+  
+  # Output variance comparison
+  variance_comparison <- data.frame(
+    Error_Level = err.lev,
+    Variance_pm25 = var_pm25,
+    Variance_pm_err = variances_pm_err
+  )
+  print(variance_comparison)
+  
+  # Correlation plot
+  correlations <- colMeans(cor_res)
+  plot(err.lev, correlations, type = "b", col = "red",
+       xlab = "Error Level", ylab = "Correlation (pm.err vs pm25)",
+       main = paste("Correlation vs Error Levels (", scen, ")", sep = ""))
+  
+  # Coefficients and SEs
+  coef_means <- colMeans(diff_res[, grep("b_", names(diff_res))])
+  se_means   <- colMeans(diff_res[, grep("se_", names(diff_res))])
+  
+  # Plot coefficients and SEs
+  par(mfrow = c(1, 2))
+  
+  plot(err.lev, coef_means, type = "b", col = "blue",
+       xlab = "Error Level", ylab = "Mean Coefficient (b)",
+       main = paste("Effect of Error on Coefficient (", scen, ")", sep = ""))
+  
+  plot(err.lev, se_means, type = "b", col = "green",
+       xlab = "Error Level", ylab = "Mean SE",
+       main = paste("Effect of Error on SE (", scen, ")", sep = ""))
+  
+  par(mfrow = c(1, 1))  # Reset plot layout
+  
+  cat("Completed scenario:", scen, "\n")
+}
+
+cat("\nAll scenarios processed!\n")
+write_csv(final_results,"~/Downloads/CodeReview_Alan/exp/exp_002/Results/Var_Corr.csv")
+```
+
+
+```{r}
+# Create LaTeX table
+xtable_table <- xtable(final_results, caption = "Variance and Correlation Results Across Scenarios", label = "tab:var_corr_results")
+print(xtable_table, include.rownames = FALSE, booktabs = TRUE)
+```
+
+Experiment E3
+```{r}
+# --- Paths ---
+base_path <- "~/Downloads/CodeReview_Alan/exp/exp_003/Results/"
+scenario_names <- c(
+  "nondiff_null", "diff_null_moreErr", "diff_null_lessErr", "diff_null_lessErr50", "diff_null_moreErr50", 
+  "nondiff_harm", "diff_harm_moreErr", "diff_harm_lessErr", "diff_harm_lessErr50", "diff_harm_moreErr50"
+)
+
+# --- Error Levels ---
+err.lev <- c(0, 0.5, 1, 2)
+
+# --- True Variance ---
+var_pm25 <- var(truedta_ass$pm25)
+
+# --- Loop through each scenario ---
+for (scen in scenario_names) {
+  cat("\nProcessing scenario:", scen, "\n")
+  
+  # Load results
+  diff_res <- read_csv(paste0(base_path, scen, ".csv"))
+  cor_res  <- read_csv(paste0(base_path, "cor_", scen, ".csv"))
+  
+  # Variance of observed exposure for error levels
+  variances_pm_err <- numeric(length(err.lev))
+  for (e in 1:length(err.lev)) {
+    pm.err.norisk <- rnorm(nrow(truedta_ass), truedta_ass$pm25, err.lev[e] * sd(truedta_ass$pm25))
+    pm.err.hirisk <- rnorm(nrow(truedta_ass), truedta_ass$pm25, (err.lev[e] * 10) * sd(truedta_ass$pm25))
+    
+    pm.err <- ifelse(truedta_ass$all_births > 0,
+                     (truedta_ass$term_births * pm.err.norisk +
+                        truedta_ass$preterm_births * pm.err.hirisk) /
+                       truedta_ass$all_births,
+                     mean(c(pm.err.norisk, pm.err.hirisk)))
+    
+    variances_pm_err[e] <- var(pm.err)
+  }
+  
+  # Output variance comparison
+  variance_comparison <- data.frame(
+    Error_Level = err.lev,
+    Variance_pm25 = var_pm25,
+    Variance_pm_err = variances_pm_err
+  )
+  print(variance_comparison)
+  
+  # Correlation plot
+  correlations <- colMeans(cor_res)
+  plot(err.lev, correlations, type = "b", col = "red",
+       xlab = "Error Level", ylab = "Correlation (pm.err vs pm25)",
+       main = paste("Correlation vs Error Levels (", scen, ")", sep = ""))
+  
+  # Coefficients and SEs
+  coef_means <- colMeans(diff_res[, grep("b_", names(diff_res))])
+  se_means   <- colMeans(diff_res[, grep("se_", names(diff_res))])
+  
+  # Plot coefficients and SEs
+  par(mfrow = c(1, 2))
+  
+  plot(err.lev, coef_means, type = "b", col = "blue",
+       xlab = "Error Level", ylab = "Mean Coefficient (b)",
+       main = paste("Effect of Error on Coefficient (", scen, ")", sep = ""))
+  
+  plot(err.lev, se_means, type = "b", col = "green",
+       xlab = "Error Level", ylab = "Mean SE",
+       main = paste("Effect of Error on SE (", scen, ")", sep = ""))
+  
+  par(mfrow = c(1, 1))  # Reset plot layout
+  
+  cat("Completed scenario:", scen, "\n")
+}
+
+cat("\nAll scenarios processed!\n")
+write_csv(final_results,"~/Downloads/CodeReview_Alan/exp/exp_003/Results/Var_Corr.csv")
+```
+
+
+```{r}
+# Create LaTeX table
+xtable_table <- xtable(final_results, caption = "Variance and Correlation Results Across Scenarios", label = "tab:var_corr_results")
+print(xtable_table, include.rownames = FALSE, booktabs = TRUE)
+```
+
+
+
+Table A3 
+For tables, we need bias data from results
+```{r}
+#1. Parse the scenario column
+bias_results <- read_csv("~/Downloads/CodeReview_Alan/exp/exp_001/Results//bias_results.csv")
+table_data <- bias_results %>%
+  
+  # Split scenario into parts
+  separate(
+    scenario,
+    into = c("type","effect","errtype","error_level"),
+    sep = "_",
+    fill = "right"
+  ) %>%
+  
+  # Fix nondiff rows (they only have 3 parts)
+  mutate(
+    error_level = ifelse(type == "nondiff", errtype, error_level),
+    errtype = ifelse(type == "nondiff", NA, errtype)
+  ) %>%
+  
+  # Create labels
+  mutate(
+    Group = ifelse(effect == "null", "NULL", "HARMFUL"),
+    Scenario = ifelse(
+      type == "nondiff",
+      paste(type, effect),
+      paste(type, effect, errtype)
+    ),
+    `Error Level` = error_level
+  ) %>%
+  
+  # Format bias + CI column
+  mutate(
+    `Bias 95% intervals` =
+      sprintf("%.1f (%.1f, %.1f)", bias_mean, bias_2.5, bias_97.5),
+    Coverage = round(coverage)
+  ) %>%
+  
+  # Keep only needed columns
+  dplyr::select(Group, Scenario, `Error Level`, `Bias 95% intervals`, Coverage)
+
+# Recommended: enforce correct ordering of error levels
+table_data$`Error Level` <- factor(
+  table_data$`Error Level`,
+  levels = c("0","0.5","1","2")
+)
+
+# Optional: order rows nicely
+table_data <- table_data %>%
+  arrange(Group, Scenario, `Error Level`)
+
+# Export LaTeX table for Overleaf
+latex_table <- kable(
+  table_data,
+  format = "latex",
+  booktabs = TRUE,
+  align = "llccc",
+  col.names = c("Group","Scenario","Error Level",
+                "Bias 95\\% intervals","Coverage")
+) %>%
+  kable_styling(latex_options = "hold_position")
+
+cat(latex_table)
+```
+
+
+
+
+Table A4.  
+For tables, we need bias data from results
+```{r}
+#1. Parse the scenario column
+bias_results <- read_csv("~/Downloads/CodeReview_Alan/exp/exp_002/Results//bias_results.csv")
+table_data <- bias_results %>%
+  
+  # Split scenario into parts
+  separate(
+    scenario,
+    into = c("type","effect","errtype","error_level"),
+    sep = "_",
+    fill = "right"
+  ) %>%
+  
+  # Fix nondiff rows (they only have 3 parts)
+  mutate(
+    error_level = ifelse(type == "nondiff", errtype, error_level),
+    errtype = ifelse(type == "nondiff", NA, errtype)
+  ) %>%
+  
+  # Create labels
+  mutate(
+    Group = ifelse(effect == "null", "NULL", "HARMFUL"),
+    Scenario = ifelse(
+      type == "nondiff",
+      paste(type, effect),
+      paste(type, effect, errtype)
+    ),
+    `Error Level` = error_level
+  ) %>%
+  
+  # Format bias + CI column
+  mutate(
+    `Bias 95% intervals` =
+      sprintf("%.1f (%.1f, %.1f)", bias_mean, bias_2.5, bias_97.5),
+    Coverage = round(coverage)
+  ) %>%
+  
+  # Keep only needed columns
+  dplyr::select(Group, Scenario, `Error Level`, `Bias 95% intervals`, Coverage)
+
+# Recommended: enforce correct ordering of error levels
+table_data$`Error Level` <- factor(
+  table_data$`Error Level`,
+  levels = c("0","0+c","0.5+c","1+c","2+c")
+)
+
+# Optional: order rows nicely
+table_data <- table_data %>%
+  arrange(Group, Scenario, `Error Level`)
+
+# Export LaTeX table for Overleaf
+latex_table <- kable(
+  table_data,
+  format = "latex",
+  booktabs = TRUE,
+  align = "llccc",
+  col.names = c("Group","Scenario","Error Level",
+                "Bias 95\\% intervals","Coverage")
+) %>%
+  kable_styling(latex_options = "hold_position")
+
+cat(latex_table)
+```
+
+
+
+Table A5
+or tables, we need bias data from results
+```{r}
+#1. Parse the scenario column
+bias_results <- read_csv("~/Downloads/CodeReview_Alan/exp/exp_003/Results/bias_results.csv")
+table_data <- bias_results %>%
+  
+  # Split scenario into parts
+  separate(
+    scenario,
+    into = c("type","effect","errtype","error_level"),
+    sep = "_",
+    fill = "right"
+  ) %>%
+  
+  # Fix nondiff rows (they only have 3 parts)
+  mutate(
+    error_level = ifelse(type == "nondiff", errtype, error_level),
+    errtype = ifelse(type == "nondiff", NA, errtype)
+  ) %>%
+  
+  # Create labels
+  mutate(
+    Group = ifelse(effect == "null", "NULL", "HARMFUL"),
+    Scenario = ifelse(
+      type == "nondiff",
+      paste(type, effect),
+      paste(type, effect, errtype)
+    ),
+    `Error Level` = error_level
+  ) %>%
+  
+  # Format bias + CI column
+  mutate(
+    `Bias 95% intervals` =
+      sprintf("%.1f (%.1f, %.1f)", bias_mean, bias_2.5, bias_97.5),
+    Coverage = round(coverage)
+  ) %>%
+  
+  # Keep only needed columns
+  dplyr::select(Group, Scenario, `Error Level`, `Bias 95% intervals`, Coverage)
+
+# Recommended: enforce correct ordering of error levels
+table_data$`Error Level` <- factor(
+  table_data$`Error Level`,
+  levels = c("0","0+c","0.5+c","1+c","2+c")
+)
+
+# Optional: order rows nicely
+table_data <- table_data %>%
+  arrange(Group, Scenario, `Error Level`)
+
+# Export LaTeX table for Overleaf
+latex_table <- kable(
+  table_data,
+  format = "latex",
+  booktabs = TRUE,
+  align = "llccc",
+  col.names = c("Group","Scenario","Error Level",
+                "Bias 95\\% intervals","Coverage")
+) %>%
+  kable_styling(latex_options = "hold_position")
+
+cat(latex_table)
+```
+

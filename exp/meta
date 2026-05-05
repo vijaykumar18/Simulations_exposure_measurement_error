@@ -1,0 +1,75 @@
+================================================================================
+META — Simulation Study Overview
+================================================================================
+Title : The impact of differential exposure measurement error on the
+        PM2.5 -- preterm birth association: A simulation study
+Author: Vijay Kumar
+================================================================================
+
+STEP 1 — Create true datasets
+  Run CreateDataFinal.R from the project root. This generates:
+    - truedta_null_Final.csv   (null association, true RR = 1.00)
+    - truedta_ass_Final.csv    (harmful association, true RR = 1.115)
+
+STEP 2 — Experiments
+  Three experiments are provided, each in its own exp_00X subfolder.
+  Each experiment repeats the same 10 simulation scenarios with a different
+  error mean structure (see experiment descriptions below).
+
+STEP 3 — Run simulations
+  From inside the relevant exp_00X folder, either:
+    (a) Run Sims_all.R in one screen session (~10-12 hrs, Mac M2 / 16 GB RAM)
+    (b) Run sims1.R through sims10.R each in a separate screen session
+        (~2.5 hrs total when run in parallel)
+
+    (c)  Run scenarios individually in parallel using .sh file (~2.5 hrs total) --
+        cd ~/Downloads/CodeReview/CodeReview_Heather
+        chmod +x run_all_sims.sh   # only first time
+        ./run_all_sims.sh # creates 10 screens named simsX and executes each simsX.R in that screen
+        screen -ls # to check if all screens created and are running
+        
+    See the project-root readme for full screen session instructions.
+================================================================================
+
+STEP 4 — Visualize results
+  Run VisualizeResults.R from inside each exp_00X/Results/ folder.
+  This generates Figure 2, Figure 3, and data for Tables A3-A5.
+
+  Run CI_check.Rmd from the project root (handles all three experiments).
+  This generates Tables A1-A2 (Var_Corr.csv in each Results/ folder).
+
+================================================================================
+EXPERIMENT DESCRIPTIONS
+================================================================================
+
+exp_001 (E1): Random error only
+  Error structure: v ~ N(mean = 0, sigma^2)
+  The error mean is zero for all births and all scenarios.
+  This is the baseline experiment representing pure classical measurement error.
+
+exp_002 (E2): Random error with positive systematic shift
+  Error structure: v ~ N(mean = +0.25, sigma^2)
+  A positive shift of c = +0.25 per 1 unit of PM2.5 (equivalently +2.5 per
+  10 units) is added to the error mean for at-risk (preterm) births.
+  This models systematic over-assignment of exposure in high-risk individuals.
+
+exp_003 (E3): Random error with negative systematic shift
+  Error structure: v ~ N(mean = -0.25, sigma^2)
+  A negative shift of c = -0.25 per 1 unit of PM2.5 (equivalently -2.5 per
+  10 units) is added to the error mean for at-risk (preterm) births.
+  This models systematic under-assignment of exposure in high-risk individuals.
+
+================================================================================
+SCENARIOS (same 10 in every experiment — see Table 1 in paper)
+================================================================================
+
+  Scenario  1: Non-differential error, Null association       (sims1.R)
+  Scenario  2: Non-differential error, Harmful association    (sims2.R)
+  Scenario  3: Diff — less error in at-risk, Null             (sims3.R)
+  Scenario  4: Diff — more error in at-risk, Null             (sims4.R)
+  Scenario  5: Diff — less error in at-risk + 50% non-risk, Null   (sims5.R)
+  Scenario  6: Diff — more error in at-risk + 50% non-risk, Null   (sims6.R)
+  Scenario  7: Diff — less error in at-risk, Harmful          (sims7.R)
+  Scenario  8: Diff — more error in at-risk, Harmful          (sims8.R)
+  Scenario  9: Diff — less error in at-risk + 50% non-risk, Harmful (sims9.R)
+  Scenario 10: Diff — more error in at-risk + 50% non-risk, Harmful (sims10.R)
