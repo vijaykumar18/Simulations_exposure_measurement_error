@@ -33,78 +33,24 @@ diff_harm_lessErr <- read_csv("exp/exp_001/Results/diff_harm_lessErr.csv")
 diff_harm_lessErr50 <- read_csv("exp/exp_001/Results/diff_harm_lessErr50.csv")
 diff_harm_moreErr50 <- read_csv("exp/exp_001/Results/diff_harm_moreErr50.csv")
 
-# List of baseline dataset names
-baseline.dta <- ls()
-
-# Process exp_044 (+c datasets - all error levels)
-#setwd("~/Downloads/CodeReview_Alan/exp/exp_002/Results")
-
-# Load +c datasets
-nondiff_null_c      <- read_csv("exp/exp_002/Results/nondiff_null.csv")
-diff_null_moreErr_c <- read_csv("exp/exp_002/Results/diff_null_moreErr.csv")
-diff_null_lessErr_c <- read_csv("exp/exp_002/Results/diff_null_lessErr.csv")
-diff_null_lessErr50_c <- read_csv("exp/exp_002/Results/diff_null_lessErr50.csv")
-diff_null_moreErr50_c <- read_csv("exp/exp_002/Results/diff_null_moreErr50.csv")
-
-nondiff_harm_c      <- read_csv("exp/exp_002/Results/nondiff_harm.csv")
-diff_harm_moreErr_c <- read_csv("exp/exp_002/Results/diff_harm_moreErr.csv")
-diff_harm_lessErr_c <- read_csv("exp/exp_002/Results/diff_harm_lessErr.csv")
-diff_harm_lessErr50_c <- read_csv("exp/exp_002/Results/diff_harm_lessErr50.csv")
-diff_harm_moreErr50_c <- read_csv("exp/exp_002/Results/diff_harm_moreErr50.csv")
-
-# List of +c dataset names
-c.dta <- ls()[!ls() %in% baseline.dta]
-
-# Error levels for both baseline and +c datasets
-err.lev <- c(0, 0.5, 1, 2)
-
-# Initialize results data frames
-results <- data.frame()
-bias_results <- data.frame()
-
-
-# PROCESS BASELINE (exp_001) - ONLY ERROR LEVEL 0
+# BASELINE DATASETS (exp_001) - ERROR LEVEL 0 ONLY
 for (m in seq_along(baseline.dta)) {
   dta <- as.data.frame(get(baseline.dta[m]))
   
-  # ONLY process error level 0 for baseline
-  e <- 1  # This corresponds to error level 0
-  b_col <- which(names(dta) == paste0("b_", err.lev[e]))
+  e <- 1  # error level 0
+  b_col  <- which(names(dta) == paste0("b_",  err.lev[e]))
   se_col <- which(names(dta) == paste0("se_", err.lev[e]))
   
   if (length(b_col) > 0 && length(se_col) > 0) {
     
-    
-    # NOTE on variance estimation (Section 2.4):
-    # We apply Rubin's combining rules [Barnard & Rubin 1999] to pool the 200
-    # simulation results, computing:
-    #   V    = mean within-simulation variance = mean(se^2)
-    #   B    = between-simulation variance     = var(beta)
-    #   T    = V + (1 + 1/n_sims) * B          (total variance)
-    #   CI   = exp(beta_bar +/- 1.96 * sqrt(T))
-    #
-    # NOTE on coverage (Section 2.4):
-    # Coverage is computed separately at the per-simulation level using each
-    # simulation's own model SE (not the Rubin-pooled SE above).  This is the
-    # correct definition: the % of individual simulation CIs that contain the
-    # true beta.  The two variance estimators serve different purposes and are
-    # both appropriate.
-    
+    # Empirical mean and percentiles following
+    # standard simulation study practice (Burton et al. 2006)
     beta <- mean(dta[, b_col], na.rm = TRUE)
-    vbar <- mean(dta[, se_col]^2, na.rm = TRUE)
-    capb <- var(dta[, b_col], na.rm = TRUE)
+    rr   <- exp(beta)
+    lci  <- exp(quantile(dta[, b_col], 0.025, na.rm = TRUE))
+    uci  <- exp(quantile(dta[, b_col], 0.975, na.rm = TRUE))
     
-    n_eff <- sum(!is.na(dta[, b_col]))
-    if(n_eff > 1){
-      sterr <- sqrt(vbar + (n_eff + 1) / n_eff * capb)
-    } else {
-      sterr <- NA
-    }
-    rr <- exp(beta)
-    lci <- exp(beta - 1.96 * sterr)
-    uci <- exp(beta + 1.96 * sterr)
-    
-    temp.res <- data.frame(beta, sterr, rr, lci, uci)
+    temp.res <- data.frame(beta, rr, lci, uci)
     temp.res$scenario <- paste(baseline.dta[m], err.lev[e], sep = "_")
     
     results <- bind_rows(results, temp.res)
@@ -112,33 +58,33 @@ for (m in seq_along(baseline.dta)) {
     # Calculate bias
     beta_values <- dta[, b_col]
     if (grepl("harm", baseline.dta[m])) {
-      result_type <- "Association"
-      bias_values <- (beta_values - log(1.115)) / log(1.115) * 100
-      # COVERAGE: For association, check if true beta (log(1.115)) is within CI
-      true_beta <- log(1.115)
+      result_type  <- "Association"
+      bias_values  <- (beta_values - log(1.115)) / log(1.115) * 100
+      true_beta    <- log(1.115)
     } else {
-      result_type <- "Null Association" 
-      bias_values <- beta_values
-      # COVERAGE: For null, check if 0 is within CI
-      true_beta <- 0
+      result_type  <- "Null Association"
+      bias_values  <- beta_values
+      true_beta    <- 0
     }
     
     # Calculate percentiles
-    bias_mean <- mean(bias_values, na.rm = TRUE)
-    bias_2.5 <- quantile(bias_values, 0.025, na.rm = TRUE)
-    bias_97.5 <- quantile(bias_values, 0.975, na.rm = TRUE)
+    bias_mean  <- mean(bias_values, na.rm = TRUE)
+    bias_2.5   <- quantile(bias_values, 0.025, na.rm = TRUE)
+    bias_97.5  <- quantile(bias_values, 0.975, na.rm = TRUE)
     
-    # CALCULATE COVERAGE
+    # Calculate coverage
     ci_lower <- beta_values - 1.96 * dta[, se_col]
     ci_upper <- beta_values + 1.96 * dta[, se_col]
-    coverage <- mean(ci_lower <= true_beta & true_beta <= ci_upper, na.rm = TRUE) * 100
+    coverage <- mean(ci_lower <= true_beta & 
+                       true_beta <= ci_upper, 
+                     na.rm = TRUE) * 100
     
     temp.bias <- data.frame(
-      scenario = paste(baseline.dta[m], err.lev[e], sep = "_"),
-      bias_mean = bias_mean,
-      bias_2.5 = bias_2.5,
-      bias_97.5 = bias_97.5,
-      coverage = coverage,  # ADD COVERAGE
+      scenario    = paste(baseline.dta[m], err.lev[e], sep = "_"),
+      bias_mean   = bias_mean,
+      bias_2.5    = bias_2.5,
+      bias_97.5   = bias_97.5,
+      coverage    = coverage,
       result_type = result_type
     )
     
@@ -146,30 +92,28 @@ for (m in seq_along(baseline.dta)) {
   }
 }
 
-# PROCESS +C DATASETS (exp_002) - ALL ERROR LEVELS (0, 0.5, 1, 2) WITH +c
+# +C DATASETS (exp_002) - ALL ERROR LEVELS
 for (m in seq_along(c.dta)) {
   dta <- as.data.frame(get(c.dta[m]))
   
   for (e in seq_along(err.lev)) {
-    b_col <- which(names(dta) == paste0("b_", err.lev[e]))
+    b_col  <- which(names(dta) == paste0("b_",  err.lev[e]))
     se_col <- which(names(dta) == paste0("se_", err.lev[e]))
     
     if (length(b_col) > 0 && length(se_col) > 0) {
-      beta <- mean(dta[, b_col], na.rm = TRUE)
-      vbar <- mean(dta[, se_col]^2, na.rm = TRUE)
-      capb <- var(dta[, b_col], na.rm = TRUE)
-      n_eff <- sum(!is.na(dta[, b_col]))
-      if(n_eff > 1){
-        sterr <- sqrt(vbar + (n_eff + 1) / n_eff * capb)
-      } else {
-        sterr <- NA
-      }
-      rr <- exp(beta)
-      lci <- exp(beta - 1.96 * sterr)
-      uci <- exp(beta + 1.96 * sterr)
       
-      temp.res <- data.frame(beta, sterr, rr, lci, uci)
-      temp.res$scenario <- paste0(gsub("_c$", "", c.dta[m]), "_", err.lev[e], "+c")
+      # Empirical mean and percentiles following
+      # standard simulation study practice (Burton et al. 2006)
+      beta <- mean(dta[, b_col], na.rm = TRUE)
+      rr   <- exp(beta)
+      lci  <- exp(quantile(dta[, b_col], 0.025, na.rm = TRUE))
+      uci  <- exp(quantile(dta[, b_col], 0.975, na.rm = TRUE))
+      
+      temp.res <- data.frame(beta, rr, lci, uci)
+      temp.res$scenario <- paste0(
+        gsub("_c$", "", c.dta[m]), "_", 
+        err.lev[e], "+c"
+      )
       
       results <- bind_rows(results, temp.res)
       
@@ -178,28 +122,32 @@ for (m in seq_along(c.dta)) {
       if (grepl("harm", c.dta[m])) {
         result_type <- "Association"
         bias_values <- (beta_values - log(1.115)) / log(1.115) * 100
-        true_beta <- log(1.115)
+        true_beta   <- log(1.115)
       } else {
         result_type <- "Null Association"
         bias_values <- beta_values
-        true_beta <- 0
+        true_beta   <- 0
       }
       
+      # Calculate percentiles
       bias_mean <- mean(bias_values, na.rm = TRUE)
-      bias_2.5 <- quantile(bias_values, 0.025, na.rm = TRUE)
+      bias_2.5  <- quantile(bias_values, 0.025, na.rm = TRUE)
       bias_97.5 <- quantile(bias_values, 0.975, na.rm = TRUE)
       
-      # CALCULATE COVERAGE
+      # Calculate coverage
       ci_lower <- beta_values - 1.96 * dta[, se_col]
       ci_upper <- beta_values + 1.96 * dta[, se_col]
-      coverage <- mean(ci_lower <= true_beta & true_beta <= ci_upper, na.rm = TRUE) * 100
+      coverage <- mean(ci_lower <= true_beta & 
+                         true_beta <= ci_upper, 
+                       na.rm = TRUE) * 100
       
       temp.bias <- data.frame(
-        scenario = paste0(gsub("_c$", "", c.dta[m]), "_", err.lev[e], "+c"),
-        bias_mean = bias_mean,
-        bias_2.5 = bias_2.5,
-        bias_97.5 = bias_97.5,
-        coverage = coverage,  # ADD COVERAGE
+        scenario    = paste0(gsub("_c$", "", c.dta[m]), 
+                             "_", err.lev[e], "+c"),
+        bias_mean   = bias_mean,
+        bias_2.5    = bias_2.5,
+        bias_97.5   = bias_97.5,
+        coverage    = coverage,
         result_type = result_type
       )
       
@@ -208,17 +156,17 @@ for (m in seq_along(c.dta)) {
   }
 }
 
-coverage_results <- bias_results %>% 
+coverage_results <- bias_results %>%
   dplyr::select(scenario, coverage, result_type)
 
 summary(results)
 summary(bias_results)
 summary(coverage_results)
 
-# Save final results
 write_csv(results, "exp/exp_002/Results/results.csv")
 write_csv(bias_results, "exp/exp_002/Results/bias_results.csv")
 write_csv(coverage_results, "exp/exp_002/Results/coverage_results.csv")
+
 
 #################################RR Plots for Null Results Figure 2##################### 
 ##E2 null Results
