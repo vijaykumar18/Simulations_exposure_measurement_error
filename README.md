@@ -26,7 +26,7 @@ Two data files are required in the project root but are **not included** in this
 | File | Description | Source |
 |------|-------------|--------|
 | `zipall_1719.sas7bdat` | ZIP code–level preterm birth data for NYC, 2017–2019 | [NYSDOH Vital Statistics Birth Micro SAS Datasets](https://www.health.ny.gov/statistics/vital_statistics/2019/) |
-| `pm25_js_zip_2000_2016_ny_daily.csv` | Daily 1 km PM2.5 predictions for the contiguous U.S., 2000–2016 (Di et al.) | [Harvard Dataverse](https://doi.org/10.7910/DVN/58C6HG_2025) |
+| `pm25_js_zip_2000_2016_ny_daily.csv` | Daily 1 km PM2.5 predictions for the contiguous U.S., 2000–2016 (Di et al.) | [Harvard Dataverse](https://doi.org/10.7910/DVN/58C6HG) |
 
 > **Note:** The PTB data file is also provided in the `data/` folder of this repository.
 
