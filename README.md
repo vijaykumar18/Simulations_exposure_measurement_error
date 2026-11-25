@@ -21,12 +21,12 @@ install.packages(c("haven", "dplyr", "readr", "MASS", "lubridate",
 
 ## Data Availability
 
-Two data files are required in the project root but are **not included** in this repository:
+Two data files are required in the project root but are **not included** in this repository due to size:
 
-| File | Description |
-|------|-------------|
-| `zipall_1719.sas7bdat` | ZIP code–level preterm birth data (available upon request) |
-| `pm25_js_zip_2000_2016_ny_daily.csv` | Daily 1 km PM2.5 predictions for NYC, 2006–2016 (117 MB; available upon request) |
+| File | Description | Source |
+|------|-------------|--------|
+| `zipall_1719.sas7bdat` | ZIP code–level preterm birth data for NYC, 2017–2019 | [NYC Health Vital Statistics](https://www.nyc.gov/site/doh/data/data-sets/vital-statistics-data.page) |
+| `pm25_js_zip_2000_2016_ny_daily.csv` | Daily 1 km PM2.5 predictions for NYC, 2006–2016 (117 MB) | Publicly available via [Harvard Dataverse](https://dataverse.harvard.edu) |
 
 ---
 
